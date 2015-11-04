@@ -427,30 +427,28 @@ class IMAPServer:
         object."""
 
         self.semaphore.acquire()
-        self.connectionlock.acquire()
-        curThread = currentThread()
-        imapobj = None
 
-        if len(self.availableconnections): # One is available.
-            # Try to find one that previously belonged to this thread
-            # as an optimization.  Start from the back since that's where
-            # they're popped on.
+        with self.connectionlock:
+            curThread = currentThread()
             imapobj = None
-            for i in range(len(self.availableconnections) - 1, -1, -1):
-                tryobj = self.availableconnections[i]
-                if self.lastowner[tryobj] == curThread.ident:
-                    imapobj = tryobj
-                    del(self.availableconnections[i])
-                    break
-            if not imapobj:
-                imapobj = self.availableconnections[0]
-                del(self.availableconnections[0])
-            self.assignedconnections.append(imapobj)
-            self.lastowner[imapobj] = curThread.ident
-            self.connectionlock.release()
-            return imapobj
 
-        self.connectionlock.release()   # Release until need to modify data
+            if len(self.availableconnections): # One is available.
+                # Try to find one that previously belonged to this thread
+                # as an optimization.  Start from the back since that's where
+                # they're popped on.
+                imapobj = None
+                for i in range(len(self.availableconnections) - 1, -1, -1):
+                    tryobj = self.availableconnections[i]
+                    if self.lastowner[tryobj] == curThread.ident:
+                        imapobj = tryobj
+                        del(self.availableconnections[i])
+                        break
+                if not imapobj:
+                    imapobj = self.availableconnections[0]
+                    del(self.availableconnections[0])
+                self.assignedconnections.append(imapobj)
+                self.lastowner[imapobj] = curThread.ident
+                return imapobj
 
         # Must be careful here that if we fail we should bail out gracefully
         # and release locks / threads so that the next attempt can try...
